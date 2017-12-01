@@ -102,7 +102,7 @@ class ComplementaryColorModel {
     this.session = new Session(graph, this.math);
 
     // Generate the data that will be used to train the model.
-    this.generateTrainingData(1e5);
+    this.generateTrainingData(1e4);
   }
 
   /**
