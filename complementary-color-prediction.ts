@@ -74,26 +74,7 @@ class ComplementaryColorModel {
 
     this.predictionTensor =
         this.createFullyConnectedLayer(graph, fullyConnectedLayer, 3, 3);
-/*/
-    // Create 4 fully connected layers. The first one has 32 nodes.
-    let fullyConnectedLayer =
-        this.createFullyConnectedLayer(graph, this.inputTensor, 0, 32);
 
-    // Create fully connected layer 1, which has 48 nodes.
-    fullyConnectedLayer =
-        this.createFullyConnectedLayer(graph, fullyConnectedLayer, 1, 48);
-
-    // Create fully connected layer 1, which has 16 nodes.
-    fullyConnectedLayer =
-        this.createFullyConnectedLayer(graph, fullyConnectedLayer, 2, 16);
-
-    // Create fully connected layer 2, which has 8 nodes.
-    fullyConnectedLayer =
-        this.createFullyConnectedLayer(graph, fullyConnectedLayer, 3, 8);
-
-    this.predictionTensor =
-        this.createFullyConnectedLayer(graph, fullyConnectedLayer, 4, 3);
-  */
     // We will optimize using mean squared loss.
     this.costTensor =
         graph.meanSquaredCost(this.targetTensor, this.predictionTensor);
@@ -535,7 +516,7 @@ function initializeUi() {
     }], makeAnnotationG = d3.annotation().annotations(annotationG);
 
     d3.select("svg").append("g").attr("class", "annotation-group").call(makeAnnotationG);
-  }, 10);
+  }, 1);
   // setTimeout(function(){d3.selectAll(".annotations").style("opacity", 0);}, 300000);
 
   // Computes the complementary color of an input string in the #rrggbb format and returns
@@ -547,7 +528,7 @@ function initializeUi() {
   }
 }
 
-var startTrainingTime = new Date();
+const startTrainingTime = new Date();
 // Total time in minutes
 function totalTime() {
   var now = new Date;
@@ -558,6 +539,3 @@ initializeUi();
 // Calling requestAnimationFrame through setTimeout
 // gives room for the browser screen initialization
 setTimeout(function():any{requestAnimationFrame(trainAndMaybeRender);});
-
-
-// Create tensors for meanSquared cost computation in trainAndMaybeRender!!
