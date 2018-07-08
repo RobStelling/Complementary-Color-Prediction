@@ -15,327 +15,255 @@
  * =============================================================================
  */
 
-// tslint:disable-next-line:max-line-length
-import {Array1D, CostReduction, FeedEntry, Graph, InCPUMemoryShuffledInputProviderBuilder,
-        NDArrayMath, NDArrayMathGPU, Session, MomentumOptimizer, Tensor} from 'deeplearn';
-declare var d3:any;
+ /*
+  * Based on the complementary color prediction demo from deeplearn.js
+  * Recreated on top of tensorflow.js with D3.js visuals
+  */
 
-class ComplementaryColorModel {
-  // Runs training.
-  session: Session;
+var learningRate = 42e-3,
+    initialLearningRate = learningRate,
+    momentum = 0.9,
+    optimizer = tf.train.momentum(learningRate, momentum, true),
+    currentLearningRate = learningRate;
 
-  // Encapsulates math operations on the CPU and GPU.
-  math: NDArrayMath = new NDArrayMathGPU();
+const BATCH_SIZE = 128,
+      TEST_FREQ = 5;
 
-  // An optimizer with a certain initial learning rate. Used for training.
-  initialLearningRate = 0.042;
-  optimizer: MomentumOptimizer;
-  // Momentum parameter for MomentumOptimizer, usually set to ~0.9
-  momentum = 0.9;
+const data = generateData(BATCH_SIZE*512);
 
-  // Each training batch will be on this many examples.
-  batchSize = 300;
 
-  inputTensor: Tensor;
-  targetTensor: Tensor;
-  costTensor: Tensor;
-  predictionTensor: Tensor;
+const model = tf.sequential();
+  
+//Add input layer
+// First layer must have an input shape defined.
+model.add(tf.layers.dense({units: 3,
+                          activation: 'tanh',
+                          inputShape: [3]}));
+// Afterwards, TF.js does automatic shape inference.
+model.add(tf.layers.dense({units: 64,
+                           activation: 'relu'
+                         }));
+// Afterwards, TF.js does automatic shape inference.
+model.add(tf.layers.dense({units: 32,
+                           activation: 'relu'
+                         }));
+// Afterwards, TF.js does automatic shape inference.
+model.add(tf.layers.dense({units: 16,
+                           activation: 'relu'
+                         }));
+// Afterwards, TF.js does automatic shape inference.
+model.add(tf.layers.dense({units: 3,
+                           activation: 'tanh'
+                         }));
+// Compile the model
+model.compile({optimizer: optimizer,
+               loss: loss,
+               metrics: ['accuracy']
+              });
 
-  // Maps tensors to InputProviders.
-  feedEntries: FeedEntry[];
+/**
+ * This implementation of computing the complementary color came from an
+ * answer by Edd at https://stackoverflow.com/a/37657940
+ */
+function computeComplementaryColor(rgbColor) {
+  let r = rgbColor[0];
+  let g = rgbColor[1];
+  let b = rgbColor[2];
 
-  constructor() {
-    this.optimizer = new MomentumOptimizer(this.initialLearningRate, this.momentum)
-  }
+  // Convert RGB to HSL
+  // Adapted from answer by 0x000f http://stackoverflow.com/a/34946092/4939630
+  r /= 255.0;
+  g /= 255.0;
+  b /= 255.0;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = (max + min) / 2.0;
+  let s = h;
+  const l = h;
 
-  /**
-   * Constructs the graph of the model. Call this method before training.
-   */
-  setupSession(): void {
-    const graph = new Graph();
+  if (max === min) {
+    h = s = 0;  // achromatic
+  } else {
+    const d = max - min;
+    s = (l > 0.5 ? d / (2.0 - max - min) : d / (max + min));
 
-    // This tensor contains the input. In this case, it is a scalar.
-    this.inputTensor = graph.placeholder('input RGB value', [3]);
-
-    // This tensor contains the target.
-    this.targetTensor = graph.placeholder('output RGB value', [3]);
-/**/
-    // Create 3 fully connected layers, each with half the number of nodes of
-    // the previous layer. The first one has 64 nodes.
-    let fullyConnectedLayer =
-        this.createFullyConnectedLayer(graph, this.inputTensor, 0, 64);
-
-    // Create fully connected layer 1, which has 32 nodes.
-    fullyConnectedLayer =
-        this.createFullyConnectedLayer(graph, fullyConnectedLayer, 1, 32);
-
-    // Create fully connected layer 2, which has 16 nodes.
-    fullyConnectedLayer =
-        this.createFullyConnectedLayer(graph, fullyConnectedLayer, 2, 16);
-
-    this.predictionTensor =
-        this.createFullyConnectedLayer(graph, fullyConnectedLayer, 3, 3);
-
-    // We will optimize using mean squared loss.
-    this.costTensor =
-        graph.meanSquaredCost(this.targetTensor, this.predictionTensor);
-
-    // Create the session only after constructing the graph.
-    this.session = new Session(graph, this.math);
-
-    // Generate the data that will be used to train the model.
-    this.generateTrainingData(1e4);
-  }
-
-  /**
-   * Trains one batch for one iteration. Call this method multiple times to
-   * progressively train. Calling this function transfers data from the GPU in
-   * order to obtain the current loss on training data.
-   *
-   * If shouldFetchCost is true, returns the mean cost across examples in the
-   * batch. Otherwise, returns -1. We should only retrieve the cost now and then
-   * because doing so requires transferring data from the GPU.
-   */
-  train1Batch(shouldFetchCost: boolean): number {
-    // Every 42 steps, lower the learning rate by 15%.
-    const learningRate =
-        this.initialLearningRate * Math.pow(0.85, Math.floor(step / 42));
-    this.optimizer.setLearningRate(learningRate);
-
-    // Train 1 batch.
-    let costValue = -1;
-    this.math.scope(() => {
-      const cost = this.session.train(
-          this.costTensor, this.feedEntries, this.batchSize, this.optimizer,
-          shouldFetchCost ? CostReduction.MEAN : CostReduction.NONE);
-
-      if (!shouldFetchCost) {
-        // We only train. We do not compute the cost.
-        return;
-      }
-
-      // Compute the cost (by calling get), which requires transferring data
-      // from the GPU.
-      costValue = cost.get();
-    });
-    return costValue;
-  }
-
-  normalizeColor(rgbColor: number[]): number[] {
-    return rgbColor.map(v => v / 255);
-  }
-
-  denormalizeColor(normalizedRgbColor: number[]): number[] {
-    return normalizedRgbColor.map(v => v * 255);
-  }
-
-  predict(rgbColor: number[]): number[] {
-    let complementColor: number[] = [];
-    this.math.scope((keep, track) => {
-      const mapping = [{
-        tensor: this.inputTensor,
-        data: Array1D.new(this.normalizeColor(rgbColor)),
-      }];
-      const evalOutput = this.session.eval(this.predictionTensor, mapping);
-      const values = evalOutput.getValues();
-      const colors = this.denormalizeColor(Array.prototype.slice.call(values));
-
-      // Make sure the values are within range.
-      complementColor =
-          colors.map(v => Math.round(Math.max(Math.min(v, 255), 0)));
-    });
-    return complementColor;
-  }
-
-  private createFullyConnectedLayer(
-      graph: Graph, inputLayer: Tensor, layerIndex: number,
-      sizeOfThisLayer: number) {
-    // Uses leakyRelu to avoid dying ReLU
-    // Just a small tilt (0.001) should be enough
-    return graph.layers.dense(
-        `fully_connected_${layerIndex}`, inputLayer, sizeOfThisLayer,
-        (x) => graph.leakyRelu(x, 0.001));
-  }
-
-  /**
-   * Generates data used to train. Creates a feed entry that will later be used
-   * to pass data into the model. Generates `exampleCount` data points.
-   */
-  private generateTrainingData(exampleCount: number) {
-    this.math.scope(() => {
-      const rawInputs = new Array(exampleCount);
-      for (let i = 0; i < exampleCount; i++) {
-        rawInputs[i] = [
-          this.generateRandomChannelValue(), this.generateRandomChannelValue(),
-          this.generateRandomChannelValue()
-        ];
-      }
-
-      // Store the data within Array1Ds so that learnjs can use it.
-      const inputArray: Array1D[] =
-          rawInputs.map(c => Array1D.new(this.normalizeColor(c)));
-      const targetArray: Array1D[] = rawInputs.map(
-          c => Array1D.new(
-              this.normalizeColor(this.computeComplementaryColor(c))));
-
-      // This provider will shuffle the training data (and will do so in a way
-      // that does not separate the input-target relationship).
-      const shuffledInputProviderBuilder =
-          new InCPUMemoryShuffledInputProviderBuilder(
-              [inputArray, targetArray]);
-      const [inputProvider, targetProvider] =
-          shuffledInputProviderBuilder.getInputProviders();
-
-      // Maps tensors to InputProviders.
-      this.feedEntries = [
-        {tensor: this.inputTensor, data: inputProvider},
-        {tensor: this.targetTensor, data: targetProvider}
-      ];
-    });
-  }
-
-  private generateRandomChannelValue() {
-    return Math.floor(Math.random() * 256);
-  }
-
-  /**
-   * This implementation of computing the complementary color came from an
-   * answer by Edd https://stackoverflow.com/a/37657940
-   */
-  computeComplementaryColor(rgbColor: number[]): number[] {
-    let r = rgbColor[0];
-    let g = rgbColor[1];
-    let b = rgbColor[2];
-
-    // Convert RGB to HSL
-    // Adapted from answer by 0x000f http://stackoverflow.com/a/34946092/4939630
-    r /= 255.0;
-    g /= 255.0;
-    b /= 255.0;
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    let h = (max + min) / 2.0;
-    let s = h;
-    const l = h;
-
-    if (max === min) {
-      h = s = 0;  // achromatic
-    } else {
-      const d = max - min;
-      s = (l > 0.5 ? d / (2.0 - max - min) : d / (max + min));
-
-      if (max === r && g >= b) {
-        h = 1.0472 * (g - b) / d;
-      } else if (max === r && g < b) {
-        h = 1.0472 * (g - b) / d + 6.2832;
-      } else if (max === g) {
-        h = 1.0472 * (b - r) / d + 2.0944;
-      } else if (max === b) {
-        h = 1.0472 * (r - g) / d + 4.1888;
-      }
+    if (max === r && g >= b) {
+      h = 1.0472 * (g - b) / d;
+    } else if (max === r && g < b) {
+      h = 1.0472 * (g - b) / d + 6.2832;
+    } else if (max === g) {
+      h = 1.0472 * (b - r) / d + 2.0944;
+    } else if (max === b) {
+      h = 1.0472 * (r - g) / d + 4.1888;
     }
-
-    h = h / 6.2832 * 360.0 + 0;
-
-    // Shift hue to opposite side of wheel and convert to [0-1] value
-    h += 180;
-    if (h > 360) {
-      h -= 360;
-    }
-    h /= 360;
-
-    // Convert h s and l values into r g and b values
-    // Adapted from answer by Mohsen http://stackoverflow.com/a/9493060/4939630
-    if (s === 0) {
-      r = g = b = l;  // achromatic
-    } else {
-      const hue2rgb = (p: number, q: number, t: number) => {
-        if (t < 0) t += 1;
-        if (t > 1) t -= 1;
-        if (t < 1 / 6) return p + (q - p) * 6 * t;
-        if (t < 1 / 2) return q;
-        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-        return p;
-      };
-
-      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-      const p = 2 * l - q;
-
-      r = hue2rgb(p, q, h + 1 / 3);
-      g = hue2rgb(p, q, h);
-      b = hue2rgb(p, q, h - 1 / 3);
-    }
-
-    return [r, g, b].map(v => Math.round(v * 255));
   }
+
+  h = h / 6.2832 * 360.0 + 0;
+
+  // Shift hue to opposite side of wheel and convert to [0-1] value
+  h += 180;
+  if (h > 360) {
+    h -= 360;
+  }
+  h /= 360;
+
+  // Convert h s and l values into r g and b values
+  // Adapted from answer by Mohsen http://stackoverflow.com/a/9493060/4939630
+  if (s === 0) {
+    r = g = b = l;  // achromatic
+  } else {
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    };
+
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+
+    r = hue2rgb(p, q, h + 1 / 3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1 / 3);
+  }
+
+  return [r, g, b].map(v => Math.round(v * 255));
 }
 
-const complementaryColorModel = new ComplementaryColorModel();
+function normalizeColor(color) {
+  return color.map(v => v / 255);
+}
 
-// Create the graph of the model.
-complementaryColorModel.setupSession();
+function denormalizeColor(normalizedColor) {
+  return normalizedColor.map(v => v * 255);
+}
+
+function computeComplementaryNormalizedColor(normalizedRgb) {
+  return normalizeColor(computeComplementaryColor(denormalizeColor(normalizedRgb)));
+}
+
+// Converts 1 tensor to 1 color
+function tensor2color(colorTensor) {
+  return [...Array(3).keys()].map(v => colorTensor.get(0, v));
+}
+
+// Converts colors to tensors
+function color2tensor(color) {
+  return tf.tensor(color);
+}
+
+function generateData(count) {
+
+  function generateRandomChannelValue() {
+    return Math.floor(Math.random() * 256);
+  }
+  count = Math.max(0, count);
+  
+  const rawInput = new Array(count);
+  const rawLabels = new Array(count);
+  
+  for (let i = 0; i < count; i++) {
+    rawInput[i] = [generateRandomChannelValue(),
+                   generateRandomChannelValue(),
+                   generateRandomChannelValue()];
+    rawLabels[i] = normalizeColor(computeComplementaryColor(rawInput[i]));
+    rawInput[i] = normalizeColor(rawInput[i]);
+  }
+  return [rawInput, rawLabels];
+}
+
+function loss(predictions, labels) {
+  // Subtract our labels (actual values) from predictions, square the results,
+  // and take the mean.
+  const meanSquareError = predictions.sub(labels).square().mean();
+  return meanSquareError;
+}
+
+
+async function train1Batch() {
+  // Reduce the learning rate by 85% every 42 steps
+  currentLearningRate = initialLearningRate * Math.pow(0.85, Math.floor(step/42));
+  model.optimizer.learningRate = currentLearningRate;
+  const batchData = generateData(BATCH_SIZE);
+  const dataTensor = color2tensor(batchData[0]);
+  const labelTensor = color2tensor(batchData[1]);
+  const history = await model.fit(dataTensor, labelTensor,
+           {batchSize: BATCH_SIZE,
+            epochs: 10
+           });
+
+  cost = history.history.loss[0];
+  tf.dispose(dataTensor, labelTensor);
+  return step++;
+}
 
 // On every frame, we train and then maybe update the UI.
 let step = 0;
 let cost = +Infinity;
 
-function trainAndMaybeRender() {
+async function trainAndMaybeRender() {
   // Stops at a certain setpLimit or costTarget, whatever happens first
   const stepLimit = 4242;
   const costTarget = 1.2e-4;
+
+  // If stepLimit was reached, finishTrainAndRendering
   if (step >= stepLimit) {
     finishTrainingAndRendering(`Reached step limit (${stepLimit})`);
     // Stop training.
     return;
   }
+  // If cost target was reached, finishTrainAnd
   if (cost <= costTarget) {
     finishTrainingAndRendering(`Reached cost target (${costTarget})\nCost: ${cost} Step:${step}`);
     // Stop training
     return;
   }
-// message: String
+  // message: String
   function finishTrainingAndRendering(message) {
     console.log(message);
     console.log(totalTime());
   }
-
   // Schedule the next batch to be trained.
   requestAnimationFrame(trainAndMaybeRender);
 
   // We only fetch the cost every 5 steps because doing so requires a transfer
   // of data from the GPU.
-  const localStepsToRun = 5;
+  const localStepsToRun = TEST_FREQ;
   for (let i = 0; i < localStepsToRun; i++) {
-    cost = complementaryColorModel.train1Batch(i === localStepsToRun - 1);
+    await train1Batch();
     step++;
   }
 
   // Print data to console so the user can inspect.
-  console.log('step', step, 'cost', cost);
+  //console.log('step', step, 'cost', cost);
 
-  // Visualize the predicted complement.
+  // Updates the table of the predicted complements
   const colorRows = document.querySelectorAll('tr[data-original-color]');
+
   for (let i = 0; i < colorRows.length; i++) {
     const rowElement = colorRows[i];
     const tds = rowElement.querySelectorAll('td');
     const originalColor =
-        (rowElement.getAttribute('data-original-color') as string)
+        rowElement.getAttribute('data-original-color')
             .split(',')
             .map(v => parseInt(v, 10));
 
     // Visualize the predicted color.
-    const predictedColor = complementaryColorModel.predict(originalColor);
+    const predictedColor = denormalizeColor(tensor2color(model.predict(color2tensor([normalizeColor(originalColor)]))));
     populateContainerWithColor(
         tds[2], predictedColor[0], predictedColor[1], predictedColor[2]);
   }
+
   // Updates outer ring of predicted colors
   d3.selectAll(".predicted")
       .style("fill",
         function(d){
-          const originalColor:number[] = [parseInt(d.data.color.slice(1,3), 16),
-                                          parseInt(d.data.color.slice(3,5), 16),
-                                          parseInt(d.data.color.slice(5,7), 16)];
-          const predicted = complementaryColorModel.predict(originalColor);
+          const originalColor = [parseInt(d.data.color.slice(1,3), 16),
+                                 parseInt(d.data.color.slice(3,5), 16),
+                                 parseInt(d.data.color.slice(5,7), 16)];
+          predicted = denormalizeColor(tensor2color(model.predict(color2tensor([normalizeColor(originalColor)]))));
           d.data.cost = colorCost(originalColor, predicted);
           return sharpRGBColor(predicted);
          });
@@ -398,7 +326,8 @@ function trainAndMaybeRender() {
 }
 
 // color: number[3]
-function sharpRGBColor(color):String {
+function sharpRGBColor(color) {
+  color = [...Array(color.length).keys()].map(v => Math.round(color[v]));
   return "#" + ("0" + color[0].toString(16)).slice(-2)
              + ("0" + color[1].toString(16)).slice(-2)
              + ("0" + color[2].toString(16)).slice(-2);
@@ -422,11 +351,12 @@ function initializeUi() {
   var testColors = [];
   const colorRows = document.querySelectorAll('tr[data-original-color]');
 
+  // Populate table colors
   for (let i = 0; i < colorRows.length; i++) {
     const rowElement = colorRows[i];
     const tds = rowElement.querySelectorAll('td');
     const originalColor =
-        (rowElement.getAttribute('data-original-color') as string)
+        rowElement.getAttribute('data-original-color')
             .split(',')
             .map(v => parseInt(v, 10));
 
@@ -435,13 +365,12 @@ function initializeUi() {
         tds[0], originalColor[0], originalColor[1], originalColor[2]);
 
     // Visualize the complementary color.
-    const complement =
-        complementaryColorModel.computeComplementaryColor(originalColor);
+    const complement = computeComplementaryColor(originalColor);
     populateContainerWithColor(
         tds[1], complement[0], complement[1], complement[2]);
     testColors.push({color:sharpRGBColor(originalColor), value: 42});
   }
-
+  // Initialize d3 elements
   var svg = d3.select("svg");
   var arc = [d3.arc().innerRadius(250).outerRadius(320),
              d3.arc().innerRadius(350).outerRadius(420),
@@ -534,10 +463,10 @@ function initializeUi() {
   // Computes the complementary color of an input string in the #rrggbb format and returns
   // the complementary color on the same notation
   function actualComplement(color) {
-    const originalColor:number[] = [parseInt(color.slice(1,3), 16),
-                                    parseInt(color.slice(3,5), 16),
-                                    parseInt(color.slice(5,7), 16)];
-    const complement = complementaryColorModel.computeComplementaryColor(originalColor);
+    const originalColor = [parseInt(color.slice(1,3), 16),
+                           parseInt(color.slice(3,5), 16),
+                           parseInt(color.slice(5,7), 16)];
+    const complement = computeComplementaryColor(originalColor);
     return sharpRGBColor(complement);
   }
 }
@@ -552,4 +481,4 @@ function totalTime() {
 initializeUi();
 // Calling requestAnimationFrame through setTimeout
 // gives room for the browser screen initialization
-setTimeout(function():any{requestAnimationFrame(trainAndMaybeRender);});
+setTimeout(function(){requestAnimationFrame(trainAndMaybeRender);});
