@@ -31,7 +31,6 @@ const BATCH_SIZE = 128,
 
 const data = generateData(BATCH_SIZE*512);
 
-
 const model = tf.sequential();
   
 //Add input layer
@@ -132,12 +131,15 @@ function computeComplementaryColor(rgbColor) {
   return [r, g, b].map(v => Math.round(v * 255));
 }
 
+// dormalize color components: 0-255 -> 0-1 
 function normalizeColor(color) {
   return color.map(v => v / 255);
 }
 
+
+// denormalize color components: 0-1 -> 0-255
 function denormalizeColor(normalizedColor) {
-  return normalizedColor.map(v => v * 255);
+  return normalizedColor.map(v => Math.round(v * 255));
 }
 
 function computeComplementaryNormalizedColor(normalizedRgb) {
@@ -236,6 +238,23 @@ async function trainAndMaybeRender() {
     step++;
   }
 
+  /*
+   * Takes a color, gets its prediction as a tensor, denormalize it and converts to an RGB color
+   */
+  function modelPredict(color) {
+    var normalizedColor = tf.tidy(() => {
+      const tensorColor = tf.tensor2d([normalizeColor(color)]);
+      const predictedColor = model.predict(tensorColor);
+      return tensor2color(predictedColor);
+    });
+    // Forces the predicted color to be within bounds [0-1], same code as below, but clearer
+    // normalizedColor = [...Array(normalizedColor.length).keys()].map(v => Math.max(Math.min(normalizedColor[v], 1), 0));
+    for (let i = 0; i < normalizedColor.length; i++)
+      normalizedColor[i] = Math.max(Math.min(normalizedColor[i], 1), 0);
+
+    return denormalizeColor(normalizedColor);
+  }
+
   // Print data to console so the user can inspect.
   //console.log('step', step, 'cost', cost);
 
@@ -251,7 +270,7 @@ async function trainAndMaybeRender() {
             .map(v => parseInt(v, 10));
 
     // Visualize the predicted color.
-    const predictedColor = denormalizeColor(tensor2color(model.predict(color2tensor([normalizeColor(originalColor)]))));
+    const predictedColor = modelPredict(originalColor);
     populateContainerWithColor(
         tds[2], predictedColor[0], predictedColor[1], predictedColor[2]);
   }
@@ -263,7 +282,7 @@ async function trainAndMaybeRender() {
           const originalColor = [parseInt(d.data.color.slice(1,3), 16),
                                  parseInt(d.data.color.slice(3,5), 16),
                                  parseInt(d.data.color.slice(5,7), 16)];
-          predicted = denormalizeColor(tensor2color(model.predict(color2tensor([normalizeColor(originalColor)]))));
+          predicted = modelPredict(originalColor);
           d.data.cost = colorCost(originalColor, predicted);
           return sharpRGBColor(predicted);
          });
@@ -348,6 +367,8 @@ function populateContainerWithColor(
 }
 
 function initializeUi() {
+  // testColors will record the colors in the table,
+  // to be lter used in the inner color doughnut
   var testColors = [];
   const colorRows = document.querySelectorAll('tr[data-original-color]');
 
@@ -368,7 +389,12 @@ function initializeUi() {
     const complement = computeComplementaryColor(originalColor);
     populateContainerWithColor(
         tds[1], complement[0], complement[1], complement[2]);
-    testColors.push({color:sharpRGBColor(originalColor), value: 42});
+    // In a sense, value is not strictly necessary, as every slice will be the same
+    // size. Either we use the same value here for all slices or omit value and change
+    // the pie call later to .value(function(d){return 42;}) (or any constant)
+    // We decided to use value, just because it makes easier to change the visualization
+    // later on the road if the need be.
+    testColors.push({color: sharpRGBColor(originalColor), value: 42});
   }
   // Initialize d3 elements
   var svg = d3.select("svg");
@@ -477,7 +503,8 @@ function totalTime() {
   var now = new Date;
   return (now.getTime() - startTrainingTime.getTime())/60000;
 }
-// Kick off training.
+// Prepares color table (style:none in this version) and color doughnuts
+// before starting color predictions
 initializeUi();
 // Calling requestAnimationFrame through setTimeout
 // gives room for the browser screen initialization
