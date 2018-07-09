@@ -24,7 +24,9 @@ var learningRate = 42e-3,
     initialLearningRate = learningRate,
     momentum = 0.9,
     optimizer = tf.train.momentum(learningRate, momentum, true),
-    currentLearningRate = learningRate;
+    currentLearningRate = learningRate,
+    noTrain = false,
+    noUpdate = false;
 
 const BATCH_SIZE = 128,
       TEST_FREQ = 5;
@@ -176,13 +178,28 @@ function generateData(count) {
   return [rawInput, rawLabels];
 }
 
+/*
+ * Loss function on tensors, Mean Squared Error
+ */
 function loss(predictions, labels) {
   // Subtract our labels (actual values) from predictions, square the results,
-  // and take the mean.
-  const meanSquareError = predictions.sub(labels).square().mean();
-  return meanSquareError;
+  // and take the mean. Inputs are tensors.
+  return tf.tidy(() => {
+    const meanSquareError = predictions.sub(labels).square().mean();
+    return meanSquareError;
+  });
 }
 
+function colorCost(prediction, label) {
+  // Prediction and label are RGB colors, use loss(tensor, tensor) to calculate single
+  // color loss
+  return tf.tidy(() => {
+    const predictionTensor = tf.tensor2d([normalizeColor(prediction)]);
+    const labelTensor = tf.tensor2d([normalizeColor(label)]);
+    const tensorLoss = loss(predictionTensor, labelTensor);
+    return tensorLoss.get();
+  });
+}
 
 async function train1Batch() {
   // Reduce the learning rate by 85% every 42 steps
@@ -205,39 +222,7 @@ async function train1Batch() {
 let step = 0;
 let cost = +Infinity;
 
-async function trainAndMaybeRender() {
-  // Stops at a certain setpLimit or costTarget, whatever happens first
-  const stepLimit = 4242;
-  const costTarget = 1.2e-4;
-
-  // If stepLimit was reached, finishTrainAndRendering
-  if (step >= stepLimit) {
-    finishTrainingAndRendering(`Reached step limit (${stepLimit})`);
-    // Stop training.
-    return;
-  }
-  // If cost target was reached, finishTrainAnd
-  if (cost <= costTarget) {
-    finishTrainingAndRendering(`Reached cost target (${costTarget})\nCost: ${cost} Step:${step}`);
-    // Stop training
-    return;
-  }
-  // message: String
-  function finishTrainingAndRendering(message) {
-    console.log(message);
-    console.log(totalTime());
-  }
-  // Schedule the next batch to be trained.
-  requestAnimationFrame(trainAndMaybeRender);
-
-  // We only fetch the cost every 5 steps because doing so requires a transfer
-  // of data from the GPU.
-  const localStepsToRun = TEST_FREQ;
-  for (let i = 0; i < localStepsToRun; i++) {
-    await train1Batch();
-    step++;
-  }
-
+function updateUI() {
   /*
    * Takes a color, gets its prediction as a tensor, denormalize it and converts to an RGB color
    */
@@ -255,8 +240,8 @@ async function trainAndMaybeRender() {
     return denormalizeColor(normalizedColor);
   }
 
-  // Print data to console so the user can inspect.
-  //console.log('step', step, 'cost', cost);
+  if (noUpdate)
+    return;
 
   // Updates the table of the predicted complements
   const colorRows = document.querySelectorAll('tr[data-original-color]');
@@ -283,7 +268,7 @@ async function trainAndMaybeRender() {
                                  parseInt(d.data.color.slice(3,5), 16),
                                  parseInt(d.data.color.slice(5,7), 16)];
           predicted = modelPredict(originalColor);
-          d.data.cost = colorCost(originalColor, predicted);
+          d.data.cost = colorCost(predicted, originalColor);
           return sharpRGBColor(predicted);
          });
 
@@ -332,16 +317,48 @@ async function trainAndMaybeRender() {
             .text(function(d){return d3.select("#pr"+i).style("fill").slice(4,-1);});
         return false;
       });
+}
 
-  // Estimates the cost for a single output (a label, b predicted)
-  // a: number[3]
-  // b: number[3]
-  function colorCost(a, b) {
-    // Normalize color channels before estimating single color loss
-    return Math.pow((Math.pow((a[0]-b[0])/255, 2)+
-                     Math.pow((a[1]-b[1])/255, 2)+
-                     Math.pow((a[2]-b[2])/255, 2)),0.5)/3;
+async function trainAndMaybeRender() {
+  // Stops at a certain setpLimit or costTarget, whatever happens first
+  const stepLimit = 4242;
+  const costTarget = 1.2e-4;
+
+  if (noTrain)
+    return;
+  // If stepLimit was reached, finishTrainAndRendering
+  if (step >= stepLimit) {
+    finishTrainingAndRendering(`Reached step limit (${stepLimit})`);
+    // Stop training.
+    return;
   }
+  // If cost target was reached, finishTrainAnd
+  if (cost <= costTarget) {
+    finishTrainingAndRendering(`Reached cost target (${costTarget})\nCost: ${cost} Step:${step}`);
+    // Stop training
+    return;
+  }
+  // message: String
+  function finishTrainingAndRendering(message) {
+    if (noUpdate) {
+      noUpdate = false;
+      updateUI();
+    }
+    console.log(message);
+    console.log(totalTime());
+  }
+  // Schedule the next batch to be trained.
+  requestAnimationFrame(trainAndMaybeRender);
+
+  // We only fetch the cost every 5 steps because doing so requires a transfer
+  // of data from the GPU.
+  const localStepsToRun = TEST_FREQ;
+  for (let i = 0; i < localStepsToRun; i++) {
+    await train1Batch();
+    step++;
+  }
+
+  updateUI();
 }
 
 // color: number[3]
@@ -484,8 +501,8 @@ function initializeUi() {
 
     d3.select("svg").append("g").attr("class", "annotation-group").call(makeAnnotationG);
   }, 1);
-  // setTimeout(function(){d3.selectAll(".annotations").style("opacity", 0);}, 300000);
-
+  // Makes the first prediction, with the model still untrained
+  updateUI();
   // Computes the complementary color of an input string in the #rrggbb format and returns
   // the complementary color on the same notation
   function actualComplement(color) {
@@ -497,15 +514,26 @@ function initializeUi() {
   }
 }
 
-const startTrainingTime = new Date();
-// Total time in minutes
+var startTrainingTime = null;
+// Total training time in minutes
 function totalTime() {
-  var now = new Date;
+  if (startTrainingTime == null)
+    return 0.0;
+
+  var now = new Date;  
   return (now.getTime() - startTrainingTime.getTime())/60000;
 }
 // Prepares color table (style:none in this version) and color doughnuts
 // before starting color predictions
+
+function startIt() {
+  document.getElementById("trigger").disabled = true;
+  document.getElementById("trigger").removeEventListener("click", startIt, true);
+  startTrainingTime = new Date();
+  requestAnimationFrame(trainAndMaybeRender);
+}
+
 initializeUi();
-// Calling requestAnimationFrame through setTimeout
-// gives room for the browser screen initialization
-setTimeout(function(){requestAnimationFrame(trainAndMaybeRender);});
+
+document.getElementById("trigger")
+        .addEventListener("click", startIt, true);
