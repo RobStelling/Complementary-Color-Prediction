@@ -20,22 +20,31 @@
   * Recreated on top of tensorflow.js with D3.js visuals
   */
 
+/*
+ * Model variables that can be ajusted at running time:
+ * learningRate
+ * batch_size
+ * runsb4rendering
+ * epochs
+ * stepLimit
+ * costTarget
+ *
+ * noTrain and noUpdate can be used to stop/restarting training and
+ * stop rendering screen updates
+ */
 var learningRate = 42e-3,
-    initialLearningRate = learningRate,
-    momentum = 0.9,
-    optimizer = tf.train.momentum(learningRate, momentum, true),
-    currentLearningRate = learningRate,
-    noTrain = false,
-    noUpdate = false,
+    batch_size = 128,
+    runsb4rendering = 5,
+    epochs = 10,
+    stepLimit = 4242,
+    costTarget = 1e-4,
     step = 0,
-    cost = +Infinity;
+    cost = +Infinity,
+    noTrain = false,
+    noUpdate = false;
 
-const BATCH_SIZE = 128,
-      TEST_FREQ = 5;
-
-const data = generateData(BATCH_SIZE*512);
-
-const model = tf.sequential();
+const MOMENTUM = 0.9,
+      model = tf.sequential();
 
 function modelInit() {
   //Add input layer
@@ -59,11 +68,6 @@ function modelInit() {
   model.add(tf.layers.dense({units: 3,
                              activation: 'tanh'
                            }));
-  // Compile the model
-  model.compile({optimizer: optimizer,
-                 loss: loss,
-                 metrics: ['accuracy']
-                });
 }
 
 /**
@@ -207,14 +211,14 @@ function colorCost(prediction, label) {
 
 async function train1Batch() {
   // Reduce the learning rate by 85% every 42 steps
-  currentLearningRate = initialLearningRate * Math.pow(0.85, Math.floor(step/42));
-  model.optimizer.learningRate = currentLearningRate;
-  const batchData = generateData(BATCH_SIZE);
+  //currentLearningRate = initialLearningRate * Math.pow(0.85, Math.floor(step/42));
+  //model.optimizer.learningRate = currentLearningRate;
+  const batchData = generateData(batch_size);
   const dataTensor = color2tensor(batchData[0]);
   const labelTensor = color2tensor(batchData[1]);
   const history = await model.fit(dataTensor, labelTensor,
-           {batchSize: BATCH_SIZE,
-            epochs: 10
+           {batchSize: batch_size,
+            epochs: epochs
            });
 
   cost = history.history.loss[0];
@@ -323,8 +327,6 @@ function updateUI() {
 
 async function trainAndMaybeRender() {
   // Stops at a certain setpLimit or costTarget, whatever happens first
-  const stepLimit = 4242;
-  const costTarget = 1.2e-4;
 
   if (noTrain)
     return;
@@ -352,12 +354,9 @@ async function trainAndMaybeRender() {
   // Schedule the next batch to be trained.
   requestAnimationFrame(trainAndMaybeRender);
 
-  // We only fetch the cost every 5 steps because doing so requires a transfer
-  // of data from the GPU.
-  const localStepsToRun = TEST_FREQ;
-  for (let i = 0; i < localStepsToRun; i++) {
+  // We only update the UI after runsb4rendering steps
+  for (let i = 0; i < runsb4rendering; i++)
     await train1Batch();
-  }
 
   updateUI();
 }
@@ -447,7 +446,7 @@ function initializeUi() {
         .enter()
         .append("path")
         .attr("d", arc[2])
-        .style("fill", sharpRGBColor([255,255,255]))
+        .style("fill", sharpRGBColor([200,200,200]))
         .attr("id", function(d, i){return "pr"+i;})
         .attr("class", "predicted");
   // Creates the labels for the original colors
@@ -479,6 +478,23 @@ function initializeUi() {
       return false;
     });
 
+  // Creates the labels for the pretidcte colors
+  d3.selectAll(".predicted")
+      .each(function(d, i){
+        d3.select("svg")
+            .append("text")
+            .attr("class", "tempText txPr")
+            .append("textPath")
+            .attr("xlink:href", "#pr"+i)
+            .append("tspan")
+            .attr("dy", -10)
+            .attr("dx", 95)
+            .attr("text-anchor", "middle")
+            .text(function(d){return d3.select("#pr"+i).style("fill").slice(4,-1);});
+        return false;
+      });
+
+
   // Add annotations
   const annotations = [{
     note: { label: "Original colors (RGB)"},
@@ -488,22 +504,17 @@ function initializeUi() {
     note: { label: "Computed complementary colors (RGB)"},
     x: 425, y: -130,
     dy: -160, dx: 55
+  },{
+    note: { label: "Generated colors (RGB)"},
+    x: 438, y: -328,
+    dy: -80, dx: 65
   }];
 
   const makeAnnotations = d3.annotation().annotations(annotations);
   d3.select("svg").append("g").attr("class", "annotation-group").call(makeAnnotations);
 
-  setTimeout(function(){
-    const annotationG = [{
-      note: { label: "Generated colors (RGB)"},
-      x: 438, y: -328,
-      dy: -80, dx: 65
-    }], makeAnnotationG = d3.annotation().annotations(annotationG);
-
-    d3.select("svg").append("g").attr("class", "annotation-group").call(makeAnnotationG);
-  }, 1);
   // Makes the first prediction, with the model still untrained
-  updateUI();
+  //updateUI();
   // Computes the complementary color of an input string in the #rrggbb format and returns
   // the complementary color on the same notation
   function actualComplement(color) {
@@ -531,7 +542,14 @@ function startIt() {
   document.getElementById("trigger").disabled = true;
   document.getElementById("trigger").removeEventListener("click", startIt, true);
   startTrainingTime = new Date();
-  requestAnimationFrame(trainAndMaybeRender);
+    // Compile the model
+  const optimizer = tf.train.momentum(learningRate, MOMENTUM, true);
+  model.compile({optimizer: optimizer,
+                 loss: loss,
+                 metrics: ['accuracy']
+                });
+  updateUI();
+  setTimeout(function(){requestAnimationFrame(trainAndMaybeRender);}, 1000);
 }
 
 modelInit();
