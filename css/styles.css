@@ -1,0 +1,54 @@
+  * {
+    font-family: arial, sans-serif;
+  }
+
+  #color-table {
+    border-collapse: collapse;
+    text-align: center;
+  }
+
+  #color-table, #color-table th, #color-table td {
+    border: 1px solid #000;
+  }
+
+  #color-table th, #color-table td {
+    padding: 10px;
+  }
+
+  #color-table td {
+    width: 200px;
+  }
+
+  .color-box {
+    border-radius: 10px;
+    height: 60px;
+    margin: 10px 0 0 0;
+    width: 100%;
+  }
+
+  .triggerButton {
+      position:absolute;
+      top: 0px;
+  }
+
+  .triggerButton {
+      border: 2px solid #AAA;
+      border-radius: 4px;
+      padding: 2px 5px;
+      margin: 2px;
+      background: #DDD;
+      display: inline-block;
+  }
+  .triggerButton:hover {
+      background: #CCC;
+  }
+  .triggerButton:active {
+      background: #CFC;
+  }
+  .triggerButton:disabled {
+      background: #CCF;
+      /* color: #A44; */
+  }
+  .triggerButton:valid + span {
+      color: steelblue;
+  }
