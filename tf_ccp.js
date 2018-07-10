@@ -26,7 +26,9 @@ var learningRate = 42e-3,
     optimizer = tf.train.momentum(learningRate, momentum, true),
     currentLearningRate = learningRate,
     noTrain = false,
-    noUpdate = false;
+    noUpdate = false,
+    step = 0,
+    cost = +Infinity;
 
 const BATCH_SIZE = 128,
       TEST_FREQ = 5;
@@ -34,33 +36,35 @@ const BATCH_SIZE = 128,
 const data = generateData(BATCH_SIZE*512);
 
 const model = tf.sequential();
-  
-//Add input layer
-// First layer must have an input shape defined.
-model.add(tf.layers.dense({units: 3,
-                          activation: 'tanh',
-                          inputShape: [3]}));
-// Afterwards, TF.js does automatic shape inference.
-model.add(tf.layers.dense({units: 64,
-                           activation: 'relu'
-                         }));
-// Afterwards, TF.js does automatic shape inference.
-model.add(tf.layers.dense({units: 32,
-                           activation: 'relu'
-                         }));
-// Afterwards, TF.js does automatic shape inference.
-model.add(tf.layers.dense({units: 16,
-                           activation: 'relu'
-                         }));
-// Afterwards, TF.js does automatic shape inference.
-model.add(tf.layers.dense({units: 3,
-                           activation: 'tanh'
-                         }));
-// Compile the model
-model.compile({optimizer: optimizer,
-               loss: loss,
-               metrics: ['accuracy']
-              });
+
+function modelInit() {
+  //Add input layer
+  // First layer must have an input shape defined.
+  model.add(tf.layers.dense({units: 3,
+                            activation: 'tanh',
+                            inputShape: [3]}));
+  // Afterwards, TF.js does automatic shape inference.
+  model.add(tf.layers.dense({units: 64,
+                             activation: 'relu'
+                           }));
+  // Afterwards, TF.js does automatic shape inference.
+  model.add(tf.layers.dense({units: 32,
+                             activation: 'relu'
+                           }));
+  // Afterwards, TF.js does automatic shape inference.
+  model.add(tf.layers.dense({units: 16,
+                             activation: 'relu'
+                           }));
+  // Afterwards, TF.js does automatic shape inference.
+  model.add(tf.layers.dense({units: 3,
+                             activation: 'tanh'
+                           }));
+  // Compile the model
+  model.compile({optimizer: optimizer,
+                 loss: loss,
+                 metrics: ['accuracy']
+                });
+}
 
 /**
  * This implementation of computing the complementary color came from an
@@ -219,8 +223,6 @@ async function train1Batch() {
 }
 
 // On every frame, we train and then maybe update the UI.
-let step = 0;
-let cost = +Infinity;
 
 function updateUI() {
   /*
@@ -355,7 +357,6 @@ async function trainAndMaybeRender() {
   const localStepsToRun = TEST_FREQ;
   for (let i = 0; i < localStepsToRun; i++) {
     await train1Batch();
-    step++;
   }
 
   updateUI();
@@ -533,6 +534,7 @@ function startIt() {
   requestAnimationFrame(trainAndMaybeRender);
 }
 
+modelInit();
 initializeUi();
 
 document.getElementById("trigger")
