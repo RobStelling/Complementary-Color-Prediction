@@ -56,7 +56,7 @@ function varReset() {
 
 function initValues() {
   learningRate = 42e-3;
-  batchSize = 8;
+  batchSize = 128;
   runsb4rendering = 5;
   epochs = 2;
   stepLimit = 1000;
@@ -559,7 +559,7 @@ function totalTime() {
 
 function startIt() {
   document.getElementById("trigger").disabled = true;
-  document.getElementById("batch_range").disabled = true;
+  //document.getElementById("batch_range").disabled = true;
   document.getElementById("trigger").removeEventListener("click", startIt, true);
   startTrainingTime = new Date();
     // Compile the model
@@ -579,14 +579,14 @@ function setInterfaceHooks() {
   // Render button
   document.getElementById("update")
           .addEventListener("click", function(){ noUpdate = ! noUpdate;}, true);
-  // Batch size slider
-  var batchSlider = document.getElementById("batch_range");
-  var batchOutput = document.getElementById("batch_val");
-  batchSlider.value = batchOutput.innerHTML = batchSize;
+  // Learning rate slider
+  var learningSlider = document.getElementById("learning_range");
+  var learningOutput = document.getElementById("learning_val");
+  learningSlider.value = learningOutput.innerHTML = learningRate;
   
-  batchSlider.oninput = function() {
-    batchOutput.innerHTML = this.value;
-    batchSize = +this.value;
+  learningSlider.oninput = function() {
+    learningOutput.innerHTML = this.value;
+    learningRate = +this.value;
   };
   // Epochs slider
   var epochsSlider = document.getElementById("epochs_range");
