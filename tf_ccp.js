@@ -609,13 +609,49 @@ function startIt() {
   setTimeout(function(){requestAnimationFrame(trainAndMaybeRender);}, 1000);
 }
 
+function resetEnvironment() {
+  tf.disposeVariables();
+  varReset();
+  // updateInterface();
+  modelInit();
+  document.getElementById("learning_range").disabled = false;
+  d3.selectAll(".finish").classed("finish", false);
+  d3.selectAll(".tempText").remove();
+  d3.selectAll(".predicted")
+      .style("fill", sharpRGBColor([200,200,200]))
+      .attr("id", function(d, i){return "pr"+i;})
+      .attr("class", "predicted");
+  // Creates the labels for the pretidcte colors
+  d3.selectAll(".predicted")
+      .each(function(d, i){
+        d3.select("svg")
+            .append("text")
+            .attr("class", "tempText txPr")
+            .append("textPath")
+            .attr("xlink:href", "#pr"+i)
+            .append("tspan")
+            .attr("dy", -10)
+            .attr("dx", 95)
+            .attr("text-anchor", "middle")
+            .text(function(d){return d3.select("#pr"+i).style("fill").slice(4,-1);});
+        return false;
+      });
+  var resetButton = document.getElementById("update");
+  resetButton.disabled = true;
+  resetButton.checked = true;
+  // Start button
+  var triggerButton = document.getElementById("trigger");
+  trigger.removeEventListener("click", switchStartStop, true);
+  trigger.addEventListener("click", startIt, true);
+}
+
 function setInterfaceHooks() {
   // Start button
   document.getElementById("trigger")
           .addEventListener("click", startIt, true);
   // Render button
   document.getElementById("update")
-          .addEventListener("click", function(){ noUpdate = ! noUpdate;}, true);
+          .addEventListener("click", resetEnvironment, true);
   // Learning rate slider
   var learningSlider = document.getElementById("learning_range");
   var learningOutput = document.getElementById("learning_val");
