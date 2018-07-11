@@ -42,12 +42,14 @@ var learningRate,
     cost,
     noTrain,
     noUpdate,
+    reachLimit,
     model,
     startTrainingTime;
 
 function varReset() {
   step = 0;
   cost = +Infinity;
+  reachLimit = false;
   noTrain = false;
   noUpdate = false;
   model = tf.sequential();
@@ -55,7 +57,7 @@ function varReset() {
 }
 
 function initValues() {
-  learningRate = 42e-3;
+  learningRate = 42e-2;
   batchSize = 128;
   runsb4rendering = 5;
   epochs = 2;
@@ -345,6 +347,27 @@ function updateUI() {
       });
 }
 
+function flagInterface(status) {
+  trigger = document.getElementById("trigger");
+  trigger.checked = !status;
+  document.getElementById("startStop").innerHTML = status?"Start":"Stop";
+  document.getElementById("update").disabled = false;
+}
+
+// message: String
+function finishTrainingAndRendering(message) {
+  if (noUpdate) {
+    noUpdate = false;
+    updateUI();
+  }
+
+  noTrain = true;
+  reachLimit = true;
+  flagInterface(true);
+  console.log(message);
+  console.log(totalTime());
+}
+
 async function trainAndMaybeRender() {
   // Stops at a certain setpLimit or costTarget, whatever happens first
 
@@ -353,23 +376,16 @@ async function trainAndMaybeRender() {
   // If stepLimit was reached, finishTrainAndRendering
   if (step >= stepLimit) {
     finishTrainingAndRendering(`Reached step limit (${stepLimit})\nCost: ${cost}`);
+    d3.select("#step_range").classed("finish", true);
     // Stop training.
     return;
   }
   // If cost target was reached, finishTrainAnd
   if (cost <= costTarget) {
     finishTrainingAndRendering(`Reached cost target (${costTarget})\nCost: ${cost} Step:${step}`);
+    d3.select("#cost_range").classed("finish", true);
     // Stop training
     return;
-  }
-  // message: String
-  function finishTrainingAndRendering(message) {
-    if (noUpdate) {
-      noUpdate = false;
-      updateUI();
-    }
-    console.log(message);
-    console.log(totalTime());
   }
   // Schedule the next batch to be trained.
   requestAnimationFrame(trainAndMaybeRender);
@@ -557,10 +573,31 @@ function totalTime() {
 // Prepares color table (style:none in this version) and color doughnuts
 // before starting color predictions
 
+function switchStartStop() {
+  const startStopTrigger = document.getElementById("trigger");
+  noTrain = !noTrain;
+  document.getElementById("startStop").innerHTML = noTrain?"Start":"Stop";
+  if (!noTrain) {
+    if (reachLimit) {
+      reachLimit = false;
+      d3.select("#step_range").classed("finish", false);
+      d3.select("#cost_range").classed("finish", false);
+    }
+    document.getElementById("update").disabled = true;
+    trainAndMaybeRender();
+  } else
+      document.getElementById("update").disabled = false;
+}
+
 function startIt() {
-  document.getElementById("trigger").disabled = true;
-  //document.getElementById("batch_range").disabled = true;
-  document.getElementById("trigger").removeEventListener("click", startIt, true);
+  //document.getElementById("trigger").disabled = true;
+  document.getElementById("learning_range").disabled = true;
+  var trigger = document.getElementById("trigger");
+  trigger.removeEventListener("click", startIt, true);
+  trigger.addEventListener("click", switchStartStop, true);
+
+  document.getElementById("startStop").innerHTML = noTrain?"Start":"Stop";
+  document.getElementById("update").disabled = !noTrain;
   startTrainingTime = new Date();
     // Compile the model
   const optimizer = tf.train.momentum(learningRate, MOMENTUM, true);

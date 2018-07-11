@@ -2,6 +2,7 @@
   font-family: arial, sans-serif;
 }
 
+/* Table styles */
 #color-table {
   border-collapse: collapse;
   text-align: center;
@@ -35,6 +36,7 @@ td, th {
 
 td.spaced {margin-left: 20px;}
 
+/* Switches */
 .switch {
   position: relative;
   display: inline-block;
@@ -42,8 +44,9 @@ td.spaced {margin-left: 20px;}
   height: 17px;
 }
 
-.switch input {display:none;}
+switch input {display:none;}
 
+/* Sliders (checkboxes)*/
 .slider {
   position: absolute;
   cursor: pointer;
@@ -130,11 +133,14 @@ input:checked + .slider:before {
     cursor: pointer;
 }
 
-
 .rangeslider::-moz-range-thumb {
     width: 13px;
     height: 13px;
     border-radius: 50%;
     background: #2196F3;
     cursor: pointer;
+}
+
+.rangeslider.finish {
+    background-color: red;
 }
