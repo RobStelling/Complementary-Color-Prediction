@@ -23,7 +23,7 @@
 /*
  * Model variables that can be ajusted at running time:
  * learningRate
- * batch_size
+ * batchSize
  * runsb4rendering
  * epochs
  * stepLimit
@@ -33,18 +33,18 @@
  * stop rendering screen updates
  */
 var learningRate = 42e-3,
-    batch_size = 128,
+    batchSize = 8,
     runsb4rendering = 5,
-    epochs = 10,
-    stepLimit = 4242,
+    epochs = 2,
+    stepLimit = 1000,
     costTarget = 1e-4,
     step = 0,
     cost = +Infinity,
     noTrain = false,
-    noUpdate = false;
+    noUpdate = false,
+    model = tf.sequential();
 
-const MOMENTUM = 0.9,
-      model = tf.sequential();
+const MOMENTUM = 0.9;
 
 function modelInit() {
   //Add input layer
@@ -213,11 +213,11 @@ async function train1Batch() {
   // Reduce the learning rate by 85% every 42 steps
   //currentLearningRate = initialLearningRate * Math.pow(0.85, Math.floor(step/42));
   //model.optimizer.learningRate = currentLearningRate;
-  const batchData = generateData(batch_size);
+  const batchData = generateData(batchSize);
   const dataTensor = color2tensor(batchData[0]);
   const labelTensor = color2tensor(batchData[1]);
   const history = await model.fit(dataTensor, labelTensor,
-           {batchSize: batch_size,
+           {batchSize: batchSize,
             epochs: epochs
            });
 
@@ -332,7 +332,7 @@ async function trainAndMaybeRender() {
     return;
   // If stepLimit was reached, finishTrainAndRendering
   if (step >= stepLimit) {
-    finishTrainingAndRendering(`Reached step limit (${stepLimit})`);
+    finishTrainingAndRendering(`Reached step limit (${stepLimit})\nCost: ${cost}`);
     // Stop training.
     return;
   }
@@ -540,6 +540,7 @@ function totalTime() {
 
 function startIt() {
   document.getElementById("trigger").disabled = true;
+  document.getElementById("batch_range").disabled = true;
   document.getElementById("trigger").removeEventListener("click", startIt, true);
   startTrainingTime = new Date();
     // Compile the model
@@ -552,8 +553,60 @@ function startIt() {
   setTimeout(function(){requestAnimationFrame(trainAndMaybeRender);}, 1000);
 }
 
+function setInterfaceHooks() {
+  // Start button
+  document.getElementById("trigger")
+          .addEventListener("click", startIt, true);
+  // Render button
+  document.getElementById("update")
+          .addEventListener("click", function(){ noUpdate = ! noUpdate;}, true);
+  // Batch size slider
+  var batchSlider = document.getElementById("batch_range");
+  var batchOutput = document.getElementById("batch_val");
+  batchSlider.value = batchOutput.innerHTML = batchSize;
+  
+  batchSlider.oninput = function() {
+    batchOutput.innerHTML = this.value;
+    batchSize = +this.value;
+  };
+  // Epochs slider
+  var epochsSlider = document.getElementById("epochs_range");
+  var epochsOuput = document.getElementById("epochs_val");
+  epochsSlider.value = epochsOuput.innerHTML = epochs;
+
+  epochsSlider.oninput = function() {
+    epochsOuput.innerHTML = this.value;
+    epochs = +this.value;
+  };
+  // Render interval slider
+  var renderSlider = document.getElementById("render_range");
+  var renderOuput = document.getElementById("render_val");
+  renderSlider.value = renderOuput.innerHTML = runsb4rendering;
+
+  renderSlider.oninput = function() {
+    renderOuput.innerHTML = this.value;
+    runsb4rendering = +this.value;
+  };
+  // Step limit slider
+  var stepSlider = document.getElementById("step_range");
+  var stepOuput = document.getElementById("step_val");
+  stepSlider.value = stepOuput.innerHTML = stepLimit;
+
+  stepSlider.oninput = function() {
+    stepOuput.innerHTML = this.value;
+    stepLimit = +this.value;
+  };
+  // Cost target slider
+  var costSlider = document.getElementById("cost_range");
+  var costOuput = document.getElementById("cost_val");
+  costSlider.value = costOuput.innerHTML = costTarget;
+
+  costSlider.oninput = function() {
+    costOuput.innerHTML = this.value;
+    costTarget = +this.value;
+  };
+}
+
 modelInit();
 initializeUi();
-
-document.getElementById("trigger")
-        .addEventListener("click", startIt, true);
+setInterfaceHooks();
