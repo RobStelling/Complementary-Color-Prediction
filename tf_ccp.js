@@ -32,17 +32,37 @@
  * noTrain and noUpdate can be used to stop/restarting training and
  * stop rendering screen updates
  */
-var learningRate = 42e-3,
-    batchSize = 8,
-    runsb4rendering = 5,
-    epochs = 2,
-    stepLimit = 1000,
-    costTarget = 1e-4,
-    step = 0,
-    cost = +Infinity,
-    noTrain = false,
-    noUpdate = false,
-    model = tf.sequential();
+var learningRate,
+    batchSize,
+    runsb4rendering,
+    epochs,
+    stepLimit,
+    costTarget,
+    step,
+    cost,
+    noTrain,
+    noUpdate,
+    model,
+    startTrainingTime;
+
+function varReset() {
+  step = 0;
+  cost = +Infinity;
+  noTrain = false;
+  noUpdate = false;
+  model = tf.sequential();
+  startTrainingTime = null;
+}
+
+function initValues() {
+  learningRate = 42e-3;
+  batchSize = 8;
+  runsb4rendering = 5;
+  epochs = 2;
+  stepLimit = 1000;
+  costTarget = 1e-4;
+  varReset();
+}
 
 const MOMENTUM = 0.9;
 
@@ -526,7 +546,6 @@ function initializeUi() {
   }
 }
 
-var startTrainingTime = null;
 // Total training time in minutes
 function totalTime() {
   if (startTrainingTime == null)
@@ -607,6 +626,7 @@ function setInterfaceHooks() {
   };
 }
 
+initValues();
 modelInit();
 initializeUi();
 setInterfaceHooks();
