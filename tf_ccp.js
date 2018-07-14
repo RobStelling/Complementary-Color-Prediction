@@ -379,9 +379,8 @@ function finishTrainingAndRendering(message) {
 }
 
 async function trainAndMaybeRender() {
-  // Stops at a certain setpLimit or costTarget, whatever happens first
-
-  if (noTrain)
+  // Stops at user's command, at a certain stepLimit or costTarget, whatever happens first
+  if (noTrain) 
     return;
   // If stepLimit was reached, finishTrainAndRendering
   if (step >= stepLimit) {
@@ -588,14 +587,15 @@ function switchStartStop() {
   const startStopTrigger = document.getElementById("trigger");
   noTrain = !noTrain;
   document.getElementById("startStop").innerHTML = noTrain?"Start":"Stop";
-  if (!noTrain) {
+  // If we are back to training, clear stoppers.
+  if (noTrain == false) {
     if (reachLimit) {
       reachLimit = false;
       d3.select("#step_range").classed("finish", false);
       d3.select("#cost_range").classed("finish", false);
     }
     document.getElementById("update").disabled = true;
-    trainAndMaybeRender();
+    requestAnimationFrame(trainAndMaybeRender);
   } else
       document.getElementById("update").disabled = false;
 }
