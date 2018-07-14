@@ -44,7 +44,10 @@ td.spaced {margin-left: 20px;}
   height: 17px;
 }
 
-switch input {display:none;}
+input[type=checkbox] {
+  opacity: 0;
+}
+/* switch input {display:none;} */
 
 /* Sliders (checkboxes)*/
 .slider {
@@ -74,6 +77,11 @@ switch input {display:none;}
 input:checked + .slider {
   background-color: #2196F3;
 }
+
+input:checked + .slider.trigger {
+  background-color: #F32121;
+}
+
 
 input:focus + .slider {
   box-shadow: 0 0 1px #2196F3;

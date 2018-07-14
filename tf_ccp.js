@@ -44,7 +44,8 @@ var learningRate,
     noUpdate,
     reachLimit,
     model,
-    startTrainingTime;
+    startTrainingTime,
+    forbiddenColors;
 
 function varReset() {
   step = 0;
@@ -58,11 +59,12 @@ function varReset() {
 
 function initValues() {
   learningRate = 42e-2;
-  batchSize = 128;
+  batchSize = 10;
   runsb4rendering = 5;
   epochs = 2;
   stepLimit = 1000;
-  costTarget = 1e-4;
+  costTarget = 5e-4;
+  forbiddenColors = new Set();
   varReset();
 }
 
@@ -188,6 +190,11 @@ function color2tensor(color) {
   return tf.tensor(color);
 }
 
+// Assumes color is well behaved ([0-255, 0-255, 0-255])
+function squashColor(color){
+  return color[0]<<16 | color[1]<<8 | color[2];
+}
+
 function generateData(count) {
 
   function generateRandomChannelValue() {
@@ -202,8 +209,11 @@ function generateData(count) {
     rawInput[i] = [generateRandomChannelValue(),
                    generateRandomChannelValue(),
                    generateRandomChannelValue()];
-    rawLabels[i] = normalizeColor(computeComplementaryColor(rawInput[i]));
-    rawInput[i] = normalizeColor(rawInput[i]);
+    if (!forbiddenColors.has(squashColor(rawInput[i]))) {
+      rawLabels[i] = normalizeColor(computeComplementaryColor(rawInput[i]));
+      rawInput[i] = normalizeColor(rawInput[i]);
+    } else
+      i--;
   }
   return [rawInput, rawLabels];
 }
@@ -448,6 +458,7 @@ function initializeUi() {
     // We decided to use value, just because it makes easier to change the visualization
     // later on the road if the need be.
     testColors.push({color: sharpRGBColor(originalColor), value: 42});
+    forbiddenColors.add(squashColor(originalColor));
   }
   // Initialize d3 elements
   var svg = d3.select("svg");
@@ -541,7 +552,7 @@ function initializeUi() {
     x: 425, y: -130,
     dy: -160, dx: 55
   },{
-    note: { label: "Generated colors (RGB)"},
+    note: { label: "Predicted colors (RGB)"},
     x: 438, y: -328,
     dy: -80, dx: 65
   }];
@@ -591,7 +602,8 @@ function switchStartStop() {
 
 function startIt() {
   //document.getElementById("trigger").disabled = true;
-  document.getElementById("learning_range").disabled = true;
+  //document.getElementById("learning_range").disabled = true;
+  d3.selectAll(".freeze").attr("disabled", "");
   var trigger = document.getElementById("trigger");
   trigger.removeEventListener("click", startIt, true);
   trigger.addEventListener("click", switchStartStop, true);
@@ -614,7 +626,8 @@ function resetEnvironment() {
   varReset();
   // updateInterface();
   modelInit();
-  document.getElementById("learning_range").disabled = false;
+  d3.selectAll(".freeze").attr("disabled", null);
+  //document.getElementById("learning_range").disabled = false;
   d3.selectAll(".finish").classed("finish", false);
   d3.selectAll(".tempText").remove();
   d3.selectAll(".predicted")
@@ -662,13 +675,13 @@ function setInterfaceHooks() {
     learningRate = +this.value;
   };
   // Epochs slider
-  var epochsSlider = document.getElementById("epochs_range");
-  var epochsOuput = document.getElementById("epochs_val");
-  epochsSlider.value = epochsOuput.innerHTML = epochs;
+  var batchSlider = document.getElementById("batch_range");
+  var batchOuput = document.getElementById("batch_val");
+  batchSlider.value = batchOuput.innerHTML = batchSize;
 
-  epochsSlider.oninput = function() {
-    epochsOuput.innerHTML = this.value;
-    epochs = +this.value;
+  batchSlider.oninput = function() {
+    batchOuput.innerHTML = this.value;
+    batchSize = +this.value;
   };
   // Render interval slider
   var renderSlider = document.getElementById("render_range");
