@@ -546,7 +546,7 @@ function initializeUi() {
   const annotations = [{
     note: { label: "Original colors (RGB)"},
     x: 272, y: -212,
-    dy: -235, dx: 105
+    dy: -235, dx: 95
   },{
     note: { label: "Computed complementary colors (RGB)"},
     x: 425, y: -130,
@@ -554,7 +554,7 @@ function initializeUi() {
   },{
     note: { label: "Predicted colors (RGB)"},
     x: 438, y: -328,
-    dy: -80, dx: 65
+    dy: -80, dx: 45
   }];
 
   const makeAnnotations = d3.annotation().annotations(annotations);
@@ -674,7 +674,7 @@ function setInterfaceHooks() {
     learningOutput.innerHTML = this.value;
     learningRate = +this.value;
   };
-  // Epochs slider
+  // Batch size slider
   var batchSlider = document.getElementById("batch_range");
   var batchOuput = document.getElementById("batch_val");
   batchSlider.value = batchOuput.innerHTML = batchSize;
@@ -682,6 +682,15 @@ function setInterfaceHooks() {
   batchSlider.oninput = function() {
     batchOuput.innerHTML = this.value;
     batchSize = +this.value;
+  };
+  // Epochs slider
+  var epochsSlider = document.getElementById("epochs_range");
+  var epochsOuput = document.getElementById("epochs_val");
+  epochsSlider.value = epochsOuput.innerHTML = epochs;
+
+  epochsSlider.oninput = function() {
+    epochsOuput.innerHTML = this.value;
+    epochs = +this.value;
   };
   // Render interval slider
   var renderSlider = document.getElementById("render_range");
