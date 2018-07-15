@@ -711,6 +711,10 @@ function setInterfaceHooks() {
   stepSlider.oninput = function() {
     stepOuput.innerHTML = this.value;
     stepLimit = +this.value;
+    if (stepLimit <= step)
+      d3.select("#step_range").classed("finish", true);
+    else
+      d3.select("#step_range").classed("finish", false);
   };
   // Cost target slider
   var costSlider = document.getElementById("cost_range");
@@ -720,6 +724,10 @@ function setInterfaceHooks() {
   costSlider.oninput = function() {
     costOuput.innerHTML = this.value;
     costTarget = +this.value;
+    if (costTarget >= cost)
+      d3.select("#cost_range").classed("finish", true);
+    else
+      d3.select("#cost_range").classed("finish", false);
   };
 }
 
