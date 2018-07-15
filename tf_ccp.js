@@ -24,7 +24,7 @@
  * Model variables that can be ajusted at running time:
  * learningRate
  * batchSize
- * runsb4rendering
+ * runsb4Rendering
  * epochs
  * stepLimit
  * costTarget
@@ -34,7 +34,7 @@
  */
 var learningRate,
     batchSize,
-    runsb4rendering,
+    runsb4Rendering,
     epochs,
     stepLimit,
     costTarget,
@@ -47,52 +47,7 @@ var learningRate,
     startTrainingTime,
     forbiddenColors;
 
-function varReset() {
-  step = 0;
-  cost = +Infinity;
-  reachLimit = false;
-  noTrain = false;
-  noUpdate = false;
-  model = tf.sequential();
-  startTrainingTime = null;
-}
-
-function initValues() {
-  learningRate = 42e-2;
-  batchSize = 10;
-  runsb4rendering = 5;
-  epochs = 2;
-  stepLimit = 1000;
-  costTarget = 5e-4;
-  forbiddenColors = new Set();
-  varReset();
-}
-
 const MOMENTUM = 0.9;
-
-function modelInit() {
-  //Add input layer
-  // First layer must have an input shape defined.
-  model.add(tf.layers.dense({units: 3,
-                            activation: 'tanh',
-                            inputShape: [3]}));
-  // Afterwards, TF.js does automatic shape inference.
-  model.add(tf.layers.dense({units: 64,
-                             activation: 'relu'
-                           }));
-  // Afterwards, TF.js does automatic shape inference.
-  model.add(tf.layers.dense({units: 32,
-                             activation: 'relu'
-                           }));
-  // Afterwards, TF.js does automatic shape inference.
-  model.add(tf.layers.dense({units: 16,
-                             activation: 'relu'
-                           }));
-  // Afterwards, TF.js does automatic shape inference.
-  model.add(tf.layers.dense({units: 3,
-                             activation: 'tanh'
-                           }));
-}
 
 /**
  * This implementation of computing the complementary color came from an
@@ -165,21 +120,23 @@ function computeComplementaryColor(rgbColor) {
   return [r, g, b].map(v => Math.round(v * 255));
 }
 
-// dormalize color components: 0-255 -> 0-1 
+// Normalize/denormalize functions
+// normalize color components: 0-255 -> 0-1 
 function normalizeColor(color) {
   return color.map(v => v / 255);
 }
-
 
 // denormalize color components: 0-1 -> 0-255
 function denormalizeColor(normalizedColor) {
   return normalizedColor.map(v => Math.round(v * 255));
 }
 
+// Gets a normlized RGB color, produces a normalized complementary color
 function computeComplementaryNormalizedColor(normalizedRgb) {
   return normalizeColor(computeComplementaryColor(denormalizeColor(normalizedRgb)));
 }
 
+//Color<->Tensor functions
 // Converts 1 tensor to 1 color
 function tensor2color(colorTensor) {
   return [...Array(3).keys()].map(v => colorTensor.get(0, v));
@@ -190,13 +147,15 @@ function color2tensor(color) {
   return tf.tensor(color);
 }
 
+// Converts an array[3] colors to an integer with 24 bits
 // Assumes color is well behaved ([0-255, 0-255, 0-255])
+// Converts [0-255, 0-255, 0-255] to 24bits integer
 function squashColor(color){
   return color[0]<<16 | color[1]<<8 | color[2];
 }
 
+// Generates and array of #count [data, label] pairs
 function generateData(count) {
-
   function generateRandomChannelValue() {
     return Math.floor(Math.random() * 256);
   }
@@ -218,48 +177,24 @@ function generateData(count) {
   return [rawInput, rawLabels];
 }
 
-/*
- * Loss function on tensors, Mean Squared Error
- */
-function loss(predictions, labels) {
-  // Subtract our labels (actual values) from predictions, square the results,
-  // and take the mean. Inputs are tensors.
-  return tf.tidy(() => {
-    const meanSquareError = predictions.sub(labels).square().mean();
-    return meanSquareError;
-  });
+// color: number[3]
+function sharpRGBColor(color) {
+  color = [...Array(color.length).keys()].map(v => Math.round(color[v]));
+  return "#" + ("0" + color[0].toString(16)).slice(-2)
+             + ("0" + color[1].toString(16)).slice(-2)
+             + ("0" + color[2].toString(16)).slice(-2);
 }
 
-function colorCost(prediction, label) {
-  // Prediction and label are RGB colors, use loss(tensor, tensor) to calculate single
-  // color loss
-  return tf.tidy(() => {
-    const predictionTensor = tf.tensor2d([normalizeColor(prediction)]);
-    const labelTensor = tf.tensor2d([normalizeColor(label)]);
-    const tensorLoss = loss(predictionTensor, labelTensor);
-    return tensorLoss.get();
-  });
-}
+// Total training time in minutes
+function totalTime() {
+  if (startTrainingTime == null)
+    return 0.0;
 
-async function train1Batch() {
-  // Reduce the learning rate by 85% every 42 steps
-  //currentLearningRate = initialLearningRate * Math.pow(0.85, Math.floor(step/42));
-  //model.optimizer.learningRate = currentLearningRate;
-  const batchData = generateData(batchSize);
-  const dataTensor = color2tensor(batchData[0]);
-  const labelTensor = color2tensor(batchData[1]);
-  const history = await model.fit(dataTensor, labelTensor,
-           {batchSize: batchSize,
-            epochs: epochs
-           });
-
-  cost = history.history.loss[0];
-  tf.dispose(dataTensor, labelTensor);
-  return step++;
+  var now = new Date;  
+  return (now.getTime() - startTrainingTime.getTime())/60000;
 }
 
 // On every frame, we train and then maybe update the UI.
-
 function updateUI() {
   /*
    * Takes a color, gets its prediction as a tensor, denormalize it and converts to an RGB color
@@ -276,6 +211,17 @@ function updateUI() {
       normalizedColor[i] = Math.max(Math.min(normalizedColor[i], 1), 0);
 
     return denormalizeColor(normalizedColor);
+  }
+
+  function colorCost(prediction, label) {
+    // Prediction and label are RGB colors, use loss(tensor, tensor) to calculate single
+    // color loss
+    return tf.tidy(() => {
+      const predictionTensor = tf.tensor2d([normalizeColor(prediction)]);
+      const labelTensor = tf.tensor2d([normalizeColor(label)]);
+      const tensorLoss = loss(predictionTensor, labelTensor);
+      return tensorLoss.get();
+    });
   }
 
   if (noUpdate)
@@ -357,30 +303,60 @@ function updateUI() {
       });
 }
 
-function flagInterface(status) {
-  trigger = document.getElementById("trigger");
-  trigger.checked = !status;
-  document.getElementById("startStop").innerHTML = status?"Start":"Stop";
-  document.getElementById("update").disabled = false;
+/*
+ * Loss function on tensors, Mean Squared Error
+ */
+function loss(predictions, labels) {
+  // Subtract our labels (actual values) from predictions, square the results,
+  // and take the mean. Inputs are tensors.
+  return tf.tidy(() => {
+    const meanSquareError = predictions.sub(labels).square().mean();
+    return meanSquareError;
+  });
 }
 
-// message: String
-function finishTrainingAndRendering(message) {
-  if (noUpdate) {
-    noUpdate = false;
-    updateUI();
-  }
+async function train1Batch() {
+  // Reduce the learning rate by 85% every 42 steps
+  //currentLearningRate = initialLearningRate * Math.pow(0.85, Math.floor(step/42));
+  //model.optimizer.learningRate = currentLearningRate;
+  const batchData = generateData(batchSize);
+  const dataTensor = color2tensor(batchData[0]);
+  const labelTensor = color2tensor(batchData[1]);
+  const history = await model.fit(dataTensor, labelTensor,
+           {batchSize: batchSize,
+            epochs: epochs
+           });
 
-  noTrain = true;
-  reachLimit = true;
-  flagInterface(true);
-  console.log(message);
-  console.log(totalTime());
+  cost = history.history.loss[0];
+  tf.dispose(dataTensor, labelTensor);
+  return step++;
 }
 
+// Trains the model for runsb4Rendering steps and then update the UI
 async function trainAndMaybeRender() {
-  // Stops at user's command, at a certain stepLimit or costTarget, whatever happens first
-  if (noTrain) 
+  // message: String
+  function finishTrainingAndRendering(message) {
+    function flagInterface(status) {
+      trigger = document.getElementById("trigger");
+      trigger.checked = !status;
+      document.getElementById("startStop").innerHTML = status?"Start":"Stop";
+      document.getElementById("update").disabled = false;
+    }
+
+    if (noUpdate) {
+      noUpdate = false;
+      updateUI();
+    }
+
+    noTrain = true;
+    reachLimit = true;
+    flagInterface(true);
+    console.log(message);
+    console.log(totalTime());
+  }
+  // Stops at a certain setpLimit or costTarget, whatever happens first
+
+  if (noTrain)
     return;
   // If stepLimit was reached, finishTrainAndRendering
   if (step >= stepLimit) {
@@ -399,20 +375,13 @@ async function trainAndMaybeRender() {
   // Schedule the next batch to be trained.
   requestAnimationFrame(trainAndMaybeRender);
 
-  // We only update the UI after runsb4rendering steps
-  for (let i = 0; i < runsb4rendering; i++)
+  // We only update the UI after runsb4Rendering steps
+  for (let i = 0; i < runsb4Rendering; i++)
     await train1Batch();
 
   updateUI();
 }
 
-// color: number[3]
-function sharpRGBColor(color) {
-  color = [...Array(color.length).keys()].map(v => Math.round(color[v]));
-  return "#" + ("0" + color[0].toString(16)).slice(-2)
-             + ("0" + color[1].toString(16)).slice(-2)
-             + ("0" + color[2].toString(16)).slice(-2);
-}
 // container: HTMLElement
 // r: number (0-255)
 // g: number (0-255)
@@ -572,22 +541,10 @@ function initializeUi() {
   }
 }
 
-// Total training time in minutes
-function totalTime() {
-  if (startTrainingTime == null)
-    return 0.0;
-
-  var now = new Date;  
-  return (now.getTime() - startTrainingTime.getTime())/60000;
-}
-// Prepares color table (style:none in this version) and color doughnuts
-// before starting color predictions
-
 function switchStartStop() {
   const startStopTrigger = document.getElementById("trigger");
   noTrain = !noTrain;
   document.getElementById("startStop").innerHTML = noTrain?"Start":"Stop";
-  // If we are back to training, clear stoppers.
   if (noTrain == false) {
     if (reachLimit) {
       reachLimit = false;
@@ -619,6 +576,40 @@ function startIt() {
                 });
   updateUI();
   setTimeout(function(){requestAnimationFrame(trainAndMaybeRender);}, 1000);
+}
+
+function modelInit() {
+  //Add input layer
+  // First layer must have an input shape defined.
+  model.add(tf.layers.dense({units: 3,
+                            activation: 'tanh',
+                            inputShape: [3]}));
+  // Afterwards, TF.js does automatic shape inference.
+  model.add(tf.layers.dense({units: 64,
+                             activation: 'relu'
+                           }));
+  // Afterwards, TF.js does automatic shape inference.
+  model.add(tf.layers.dense({units: 32,
+                             activation: 'relu'
+                           }));
+  // Afterwards, TF.js does automatic shape inference.
+  model.add(tf.layers.dense({units: 16,
+                             activation: 'relu'
+                           }));
+  // Afterwards, TF.js does automatic shape inference.
+  model.add(tf.layers.dense({units: 3,
+                             activation: 'tanh'
+                           }));
+}
+
+function varReset() {
+  step = 0;
+  cost = +Infinity;
+  reachLimit = false;
+  noTrain = false;
+  noUpdate = false;
+  model = tf.sequential();
+  startTrainingTime = null;
 }
 
 function resetEnvironment() {
@@ -658,6 +649,17 @@ function resetEnvironment() {
   trigger.addEventListener("click", startIt, true);
 }
 
+function initValues() {
+  learningRate = 42e-2;
+  batchSize = 10;
+  runsb4Rendering = 5;
+  epochs = 2;
+  stepLimit = 1000;
+  costTarget = 5e-4;
+  forbiddenColors = new Set();
+  varReset();
+}
+
 function setInterfaceHooks() {
   // Start button
   document.getElementById("trigger")
@@ -695,11 +697,11 @@ function setInterfaceHooks() {
   // Render interval slider
   var renderSlider = document.getElementById("render_range");
   var renderOuput = document.getElementById("render_val");
-  renderSlider.value = renderOuput.innerHTML = runsb4rendering;
+  renderSlider.value = renderOuput.innerHTML = runsb4Rendering;
 
   renderSlider.oninput = function() {
     renderOuput.innerHTML = this.value;
-    runsb4rendering = +this.value;
+    runsb4Rendering = +this.value;
   };
   // Step limit slider
   var stepSlider = document.getElementById("step_range");
