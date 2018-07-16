@@ -18,6 +18,8 @@
  /*
   * Based on the complementary color prediction demo from deeplearn.js
   * Recreated on top of tensorflow.js with D3.js visuals
+  *
+  * Github: https://github.com/RobStelling/Complementary-Color-Prediction
   */
 
 /*
