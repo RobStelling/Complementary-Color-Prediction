@@ -5,6 +5,44 @@
   font-family: arial, sans-serif;
 }
 
+/* Tooltip */
+/* Tooltip container */
+.tooltip {
+    position: relative;
+    /*display: inline-block; */
+}
+
+/* Tooltip text */
+.tooltip .tooltiptext {
+    visibility: hidden;
+    text-align: center;
+    padding: 4px;
+    border-radius: 5px;
+
+    /* Position the tooltip text */
+    position: absolute;
+    z-index: 1;
+    bottom: 120%;
+    left: 50%;
+    margin-left: -100%;
+    white-space: nowrap;
+
+    /* Fade in tooltip */
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+/* Changes during mouse over */
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+    background-color:black;
+    color:white;
+    position:absolute;
+}
+
+
+
 /* Table styles */
 #color-table {
   border-collapse: collapse;

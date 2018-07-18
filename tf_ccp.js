@@ -31,7 +31,7 @@
  * stepLimit
  * costTarget
  *
- * noTrain and noUpdate can be used to stop/restarting training and
+ * noTrain and noUpdate can be used to stop/restart training and
  * stop rendering screen updates
  */
 var learningRate,
