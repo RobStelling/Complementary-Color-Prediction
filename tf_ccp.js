@@ -151,7 +151,6 @@ function color2tensor(color) {
 
 // Converts an array[3] colors to an integer with 24 bits
 // Assumes color is well behaved ([0-255, 0-255, 0-255])
-// Converts [0-255, 0-255, 0-255] to 24bits integer
 function squashColor(color){
   return color[0]<<16 | color[1]<<8 | color[2];
 }
@@ -179,6 +178,7 @@ function generateData(count) {
   return [rawInput, rawLabels];
 }
 
+// Generates the sharp code of a color (Ex: #0FAB10)
 // color: number[3]
 function sharpRGBColor(color) {
   color = [...Array(color.length).keys()].map(v => Math.round(color[v]));
@@ -215,6 +215,7 @@ function updateUI() {
     return denormalizeColor(normalizedColor);
   }
 
+  // Single color 'cost'
   function colorCost(prediction, label) {
     // Prediction and label are RGB colors, use loss(tensor, tensor) to calculate single
     // color loss
@@ -317,6 +318,7 @@ function loss(predictions, labels) {
   });
 }
 
+// Trains one batch
 async function train1Batch() {
   // Reduce the learning rate by 85% every 42 steps
   //currentLearningRate = initialLearningRate * Math.pow(0.85, Math.floor(step/42));
@@ -384,6 +386,7 @@ async function trainAndMaybeRender() {
   updateUI();
 }
 
+// Populates hidden table container with a RGB color
 // container: HTMLElement
 // r: number (0-255)
 // g: number (0-255)
@@ -399,6 +402,7 @@ function populateContainerWithColor(
   container.appendChild(colorBox);
 }
 
+// Initialize graphical Interface
 function initializeUi() {
   // testColors will record the colors in the table,
   // to be lter used in the inner color doughnut
@@ -543,6 +547,7 @@ function initializeUi() {
   }
 }
 
+// Called when user clicks on Start/Stop button
 function switchStartStop() {
   const startStopTrigger = document.getElementById("trigger");
   noTrain = !noTrain;
@@ -559,6 +564,7 @@ function switchStartStop() {
       document.getElementById("update").disabled = false;
 }
 
+// Actually starts the network training, when button is in Start mode
 function startIt() {
   //document.getElementById("trigger").disabled = true;
   //document.getElementById("learning_range").disabled = true;
@@ -580,6 +586,7 @@ function startIt() {
   setTimeout(function(){requestAnimationFrame(trainAndMaybeRender);}, 1000);
 }
 
+// Model layers
 function modelInit() {
   //Add input layer
   // First layer must have an input shape defined.
@@ -602,6 +609,7 @@ function modelInit() {
                            }));
 }
 
+// Variables that are reset at every rerun
 function varReset() {
   step = 0;
   cost = +Infinity;
@@ -612,6 +620,7 @@ function varReset() {
   startTrainingTime = null;
 }
 
+// Reset environment before reruning
 function resetEnvironment() {
   tf.disposeVariables();
   varReset();
@@ -649,6 +658,7 @@ function resetEnvironment() {
   trigger.addEventListener("click", startIt, true);
 }
 
+// Initial values, not reset at reruns
 function initValues() {
   learningRate = 42e-2;
   batchSize = 10;
@@ -660,6 +670,7 @@ function initValues() {
   varReset();
 }
 
+// Set interface hooks before starting
 function setInterfaceHooks() {
   // Start button
   document.getElementById("trigger")
@@ -731,6 +742,7 @@ function setInterfaceHooks() {
   };
 }
 
+// Action begins here
 initValues();
 modelInit();
 initializeUi();
