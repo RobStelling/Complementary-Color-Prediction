@@ -584,7 +584,6 @@ function modelInit() {
   //Add input layer
   // First layer must have an input shape defined.
   model.add(tf.layers.dense({units: 3,
-                            activation: 'tanh',
                             inputShape: [3]}));
   // Afterwards, TF.js does automatic shape inference.
   model.add(tf.layers.dense({units: 64,
@@ -599,8 +598,7 @@ function modelInit() {
                              activation: 'relu'
                            }));
   // Afterwards, TF.js does automatic shape inference.
-  model.add(tf.layers.dense({units: 3,
-                             activation: 'tanh'
+  model.add(tf.layers.dense({units: 3
                            }));
 }
 
