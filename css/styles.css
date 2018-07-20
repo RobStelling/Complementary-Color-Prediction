@@ -5,11 +5,10 @@
   font-family: arial, sans-serif;
 }
 
-/* Tooltip */
+/* Tooltips */
 /* Tooltip container */
 .tooltip {
     position: relative;
-    /*display: inline-block; */
 }
 
 /* Tooltip text */
@@ -41,7 +40,7 @@
     position:absolute;
 }
 
-
+/* Tooltip for svg elements */
 .svgTip {
   display: table-cell;
   vertical-align: middle;
@@ -54,7 +53,6 @@
   opacity: 0.8;
   border-radius: 5px;
 }
-
 
 /* Table styles */
 #color-table {
@@ -88,7 +86,9 @@ td, th {
     text-align: center;
 }
 
-td.spaced {margin-left: 20px;}
+td.spaced {
+  margin-left: 20px;
+}
 
 /* Switches */
 .switch {
@@ -101,7 +101,6 @@ td.spaced {margin-left: 20px;}
 input[type=checkbox] {
   opacity: 0;
 }
-/* switch input {display:none;} */
 
 /* Sliders (checkboxes)*/
 .slider {
