@@ -47,7 +47,8 @@ var learningRate,
     reachLimit,
     model,
     startTrainingTime,
-    forbiddenColors;
+    forbiddenColors,
+    tooltipSVG;
 
 const MOMENTUM = 0.9;
 
@@ -451,7 +452,7 @@ function initializeUi() {
         .attr("d", arc[0])
         .style("fill", function(d){return d.data.color;})
         .attr("id", function(d, i){return "or"+i;})
-        .attr("class", "original");
+        .attr("class", "original color");
   // Creates the middle complementary color donut
   svg.selectAll("complement")
         .data(pie(testColors))
@@ -460,7 +461,7 @@ function initializeUi() {
         .attr("d", arc[1])
         .style("fill", function(d){return actualComplement(d.data.color);})
         .attr("id", function(d, i){return "co"+i;})
-        .attr("class", "complement");
+        .attr("class", "complement color");
   // Creates the outer predicted color donut
   svg.selectAll("predicted")
         .data(pie(testColors))
@@ -469,7 +470,7 @@ function initializeUi() {
         .attr("d", arc[2])
         .style("fill", sharpRGBColor([200,200,200]))
         .attr("id", function(d, i){return "pr"+i;})
-        .attr("class", "predicted");
+        .attr("class", "predicted color");
   // Creates the labels for the original colors
   d3.selectAll(".original")
     .each(function(d, i){
@@ -667,6 +668,10 @@ function initValues() {
   stepLimit = 1000;
   costTarget = 5e-4;
   forbiddenColors = new Set();
+  tooltipSVG = d3.select("body")
+      .append("div")
+      .classed("svgTip", true)
+      .html("Complementary Color Prediction");
   varReset();
 }
 
@@ -740,6 +745,32 @@ function setInterfaceHooks() {
     else
       d3.select("#cost_range").classed("finish", false);
   };
+
+  // SVG mouseover, mousemove and mouseout callbacks 
+  function mouseoverSVG(d) {
+    if (d3.select(this).classed("predicted"))
+      tooltipSVG.html("Predicted colors");
+    else if (d3.select(this).classed("complement"))
+      tooltipSVG.html("Complementary colors");
+    else
+      tooltipSVG.html("Original colors");
+    return tooltipSVG.style("visibility", "visible");
+  }
+
+  function mousemoveSVG(d) {
+    return tooltipSVG.style("top", (d3.event.pageY-20)+"px")
+      .style("left",(d3.event.pageX+25)+"px");
+  }
+
+  function mouseoutSVG(d) {
+        return tooltipSVG.style("visibility", "hidden");
+  }
+
+  // Set SVG callbacks
+  d3.selectAll(".color")
+    .on("mouseover", mouseoverSVG)
+    .on("mousemove", mousemoveSVG)
+    .on("mouseout", mouseoutSVG);
 }
 
 // Action begins here
